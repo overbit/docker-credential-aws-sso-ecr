@@ -4,7 +4,6 @@ import (
 	"fmt"
 	"os"
 	"bufio"
-	"log"
 	s "strings"
 	"os/exec"
 )
@@ -25,8 +24,7 @@ func parseFile(file string) []string {
 	f, err := os.Open(file)
 
 	if err != nil {
-		log.Fatal("")
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "Error parsing config file: %s", err)
 	}
 
 	defer f.Close()
@@ -40,7 +38,7 @@ func parseFile(file string) []string {
 	}
 
 	if err := scanner.Err(); err != nil {
-		log.Fatal(err)
+		fmt.Fprintf(os.Stderr, "Error scanning lines of config file: %s", err)
 	}
 	return lines
 }
@@ -90,7 +88,8 @@ func getAwsSsoProfile(awsAccount string, awsRegion string) string{
 		} 
 	}
 
-	// fmt.Println("AWS profile name: %s\n", awsProfileName)
+	// logmessage := fmt.Sprintf("AWS profile name: %s", awsProfileName)
+	// println(logmessage)
 	return awsProfileName
 }
 
@@ -108,19 +107,41 @@ func getCredentials(serverUrl string) {
 	stdout, err := cmd.Output()
 	
 	if err != nil {
-		exec.Command("aws", "--profile", profileName, "sso", "login")
-	}
+		fmt.Fprintf(os.Stderr, "AWS SSO login expired: %s\n", err)
+		loginCmd := exec.Command("aws", "--profile", profileName, "sso", "login")
+		loginErr := loginCmd.Run()
+		if err != nil {
+			fmt.Println(fmt.Sprint(loginErr))
+			return
+		}
 
-	fmt.Printf("{\"ServerURL\": \"%s\", \"Username\": \"AWS\", \"Secret\": \"%s\" }\n", serverUrl, s.Replace(string(stdout), "\n", "", -1))
+	}
+	fmt.Fprintf(os.Stderr, "get-login-password result: %s\n", s.Replace(string(stdout), "\n", "", -1))
+
+	fmt.Fprintf(os.Stderr, "{\"ServerURL\": \"%v\", \"Username\": \"AWS\", \"Secret\": \"%v\"}", serverUrl, s.Replace(string(stdout), "\n", "", -1))
+	fmt.Fprintf(os.Stdout, "{\"ServerURL\": \"%v\", \"Username\": \"AWS\", \"Secret\": \"%v\"}", serverUrl, s.Replace(string(stdout), "\n", "", -1))
 }
 
 func main() {
 
 	args := os.Args[1:]
+	fmt.Fprintf(os.Stderr, "#####################################\n  Logging to AWS SSO thanks to docker-credential-aws-sso-ecr\n#####################################\n")
+
+	var payload string 
+	scanner := bufio.NewScanner(os.Stdin)
+	for scanner.Scan() {
+		payload = fmt.Sprintf(scanner.Text())
+	}
 
 	if (args[0] == "get") {
 		// fmt.Println("Not supported. Only get is supported")
-		getCredentials(args[1])
+		getCredentials(payload)
 	}
+
+	// if (args[0] == "store") {
+	// }
+
+	// if (args[0] == "erase") {
+	// }
 	
 }
