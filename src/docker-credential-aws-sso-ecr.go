@@ -100,16 +100,19 @@ func getAwsSsoProfile(awsAccount string, awsRegion string) string{
 }
 
 func callAwsCli(profileName string, awsRegion string) string{
+
 	cmd := exec.Command("aws", "--profile", profileName, "ecr", "get-login-password", "--region", awsRegion)
+	fmt.Fprintln(os.Stderr, "Running aws ecr get-login-password")
 	stdout, err := cmd.Output()
 	
 	if err != nil {
-		fmt.Fprintf(os.Stderr, "aws client error: %s\n", err)
-		fmt.Fprintf(os.Stderr, "aws client stdout: %s\n", string(stdout))
-
-		fmt.Fprintf(os.Stderr, "AWS SSO login expired: %s\n", err)
+		fmt.Fprintf(os.Stderr, "AWS SSO login expired. Running aws sso login")
 		loginCmd := exec.Command("aws", "--profile", profileName, "sso", "login")
+		loginCmd.Stdout = os.Stderr
+
 		loginErr := loginCmd.Run()
+
+		
 		if loginErr != nil {
 			fmt.Fprintf(os.Stderr, "AWS SSO login failed: %s\n", loginErr)
 			os.Exit(1)
