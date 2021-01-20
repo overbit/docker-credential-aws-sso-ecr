@@ -11,8 +11,8 @@ It *does not store aws credentials* (keys and tokens) *on the machine* but it re
 
 ## Instructions
 
-1. Clone this repository and add the `/bin` folder in the `PATH` to be discoverable by docker
-   - Alternatively, download the binary `/bin/docker-credential-aws-sso-ecr.exe` and place it in a folder present in the `PATH`
+1. Clone this repository and add the `/bin` folder in the `PATH` environment variable to enable docker to discover and run it.
+   - Alternatively, download the binary `/bin/docker-credential-aws-sso-ecr.exe` and place it in a folder present in the `PATH` environment variable
 2. Update `~/.docker/config.json` by adding the `docker-credential-aws-sso-ecr` as credStore for the specific registry like:
    ```json
     {
