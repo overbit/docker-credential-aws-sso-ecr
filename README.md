@@ -1,4 +1,4 @@
-# docker-credstore-aws-sso
+# docker-credential-aws-sso-ecr
 Docker credential store for AWS SSO 
 
 Simple docker credential store for AWS ECR when using AWS SSO profiles.
