@@ -6,19 +6,8 @@ import (
 	"bufio"
 	s "strings"
 	"os/exec"
+	"encoding/json"
 )
-
-func getAwsConfigFile() string {
-	var awsConfigFile string
-
-	if os.Getenv("AWS_CONFIG_FILE") != "" {
-		awsConfigFile = os.Getenv("AWS_CONFIG_FILE")
-	} else {
-		awsConfigFile = os.Getenv("HOME") + "/.aws/config"
-	}
-
-	return awsConfigFile
-}
 
 func parseFile(file string) []string {
 	f, err := os.Open(file)
@@ -49,8 +38,20 @@ type awsProfile struct {
 	name string
 }
 
-func getAwsSsoProfile(awsAccount string, awsRegion string) string{	
+func getAwsConfigFile() string {
+	var awsConfigFile string
 
+	if os.Getenv("AWS_CONFIG_FILE") != "" {
+		awsConfigFile = os.Getenv("AWS_CONFIG_FILE")
+	} else {
+		awsConfigFile = os.Getenv("HOME") + "/.aws/config"
+	}
+
+	return awsConfigFile
+}
+
+func getAwsSsoProfile(awsAccount string, awsRegion string) string{	
+	// Parsing the config file to extract the profile name
 	// An aws config file for SSO enabled accounts looks like
 	//    [profile myprofile]
 	//    sso_start_url = https://myurl
@@ -81,6 +82,7 @@ func getAwsSsoProfile(awsAccount string, awsRegion string) string{
 	}
 
 	var awsProfileName string
+	awsProfileName = ""
 	for _, v := range profiles {
 		if v.account == awsAccount && v.region == awsRegion {
 			awsProfileName = v.name			
@@ -88,21 +90,16 @@ func getAwsSsoProfile(awsAccount string, awsRegion string) string{
 		} 
 	}
 
-	// logmessage := fmt.Sprintf("AWS profile name: %s", awsProfileName)
-	// println(logmessage)
+	if awsProfileName == "" {
+		fmt.Fprintln(os.Stderr, "AWS SSO profile missing for region %v in account %v", awsRegion, awsAccount )
+		fmt.Fprintln(os.Stderr, "Try to add it by running: aws configure sso")
+		os.Exit(1)
+	}
+
 	return awsProfileName
 }
 
-func getCredentials(serverUrl string) {
-	// Server url for AWS ECR looks like 123123.dkr.ecr.us-east-1.amazonaws.com
-	var awsAccount = s.Split(serverUrl, ".")[0]
-	// fmt.Printf("AWS account: %s\n", awsAccount)
-	
-	var awsRegion = s.Split(serverUrl, ".")[3]
-	// fmt.Printf("AWS region: %s\n", awsRegion)
-
-	profileName := getAwsSsoProfile(awsAccount, awsRegion)
-
+func callAwsCli(profileName string, awsRegion string) string{
 	cmd := exec.Command("aws", "--profile", profileName, "ecr", "get-login-password", "--region", awsRegion)
 	stdout, err := cmd.Output()
 	
@@ -110,22 +107,41 @@ func getCredentials(serverUrl string) {
 		fmt.Fprintf(os.Stderr, "AWS SSO login expired: %s\n", err)
 		loginCmd := exec.Command("aws", "--profile", profileName, "sso", "login")
 		loginErr := loginCmd.Run()
-		if err != nil {
-			fmt.Println(fmt.Sprint(loginErr))
-			return
+		if loginErr != nil {
+			fmt.Fprintln(os.Stderr, "AWS SSO login expired: %s", loginErr)
+			os.Exit(1)
+		} else {
+			return callAwsCli(profileName, awsRegion)
 		}
-
 	}
-	fmt.Fprintf(os.Stderr, "get-login-password result: %s\n", s.Replace(string(stdout), "\n", "", -1))
+	return string(stdout)
+}
 
-	fmt.Fprintf(os.Stderr, "{\"ServerURL\": \"%v\", \"Username\": \"AWS\", \"Secret\": \"%v\"}", serverUrl, s.Replace(string(stdout), "\n", "", -1))
-	fmt.Fprintf(os.Stdout, "{\"ServerURL\": \"%v\", \"Username\": \"AWS\", \"Secret\": \"%v\"}", serverUrl, s.Replace(string(stdout), "\n", "", -1))
+func getCredentials(serverUrl string) {
+	// Server url for AWS ECR looks like 123123.dkr.ecr.us-east-1.amazonaws.com
+	var awsAccount = s.Split(serverUrl, ".")[0]	
+	var awsRegion = s.Split(serverUrl, ".")[3]
+
+	profileName := getAwsSsoProfile(awsAccount, awsRegion)
+
+	fmt.Fprintln(os.Stderr, "Profile name used: ", profileName)
+	
+	secret := callAwsCli(profileName, awsRegion)
+
+	response := map[string]string {"ServerURL": serverUrl, "Username": "AWS", "Secret": secret }
+    responseJson, _ := json.Marshal(response)
+	fmt.Fprintf(os.Stdout,string(responseJson))	
 }
 
 func main() {
 
 	args := os.Args[1:]
-	fmt.Fprintf(os.Stderr, "#####################################\n  Logging to AWS SSO thanks to docker-credential-aws-sso-ecr\n#####################################\n")
+	fmt.Fprintln(os.Stderr, "##########################################################################")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "       Logging to AWS SSO with docker-credential-aws-sso-ecr")
+	fmt.Fprintln(os.Stderr, "       https://github.com/overbit/docker-credential-aws-sso-ecr")
+	fmt.Fprintln(os.Stderr, "")
+	fmt.Fprintln(os.Stderr, "##########################################################################")
 
 	var payload string 
 	scanner := bufio.NewScanner(os.Stdin)
