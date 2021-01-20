@@ -104,11 +104,14 @@ func callAwsCli(profileName string, awsRegion string) string{
 	stdout, err := cmd.Output()
 	
 	if err != nil {
+		fmt.Fprintf(os.Stderr, "aws client error: %s\n", err)
+		fmt.Fprintf(os.Stderr, "aws client stdout: %s\n", string(stdout))
+
 		fmt.Fprintf(os.Stderr, "AWS SSO login expired: %s\n", err)
 		loginCmd := exec.Command("aws", "--profile", profileName, "sso", "login")
 		loginErr := loginCmd.Run()
 		if loginErr != nil {
-			fmt.Fprintln(os.Stderr, "AWS SSO login expired: %s", loginErr)
+			fmt.Fprintf(os.Stderr, "AWS SSO login failed: %s\n", loginErr)
 			os.Exit(1)
 		} else {
 			return callAwsCli(profileName, awsRegion)
