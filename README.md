@@ -29,6 +29,13 @@ It *does not store aws credentials* (keys and tokens) *on the machine* but it re
    ```
 3. Start pulling and pushing.
 
+### Multiple profiles for same account
+
+:warning:
+In case you have multiple profiles for the same account but with different roles you can specify a default role to be used to select the profile by adding an environment variable `DOCKER_CREDSTORE_AWS_SSO_ECR = ROLENAME` in your machine.
+
+If there are not profile with the default `ROLE_NAME`, the first profile matching the account and region will be selected.
+
 
 ## Build
 
