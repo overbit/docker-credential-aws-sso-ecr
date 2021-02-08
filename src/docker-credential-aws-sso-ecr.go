@@ -7,6 +7,7 @@ import (
 	"os"
 	"os/exec"
 	s "strings"
+	"regexp"
 )
 
 func parseFile(file string) []string {
@@ -59,12 +60,16 @@ func getAwsSsoProfile(awsAccount string, awsRegion string) string {
 	//    sso_region = myregion
 	//    sso_account_id = 123123
 	//    sso_role_name = Main
+	//    region = eu-west-1
+	// 	  output = json
 	//
 	//    [profile myotherprofile]
 	//    sso_start_url = https://myurl
 	//    sso_region = myotherregion
 	//    sso_account_id=456456
 	//    sso_role_name = ECR_READ
+	//    region = eu-west-2
+	// 	  output = json
 
 	lines := parseFile(getAwsConfigFile())
 
@@ -72,14 +77,17 @@ func getAwsSsoProfile(awsAccount string, awsRegion string) string {
 
 	var currentProfile string
 	currentProfileIndex := -1
+	profilePattern, _ := regexp.Compile("(\\[default|\\[profile .+)\\]$")
+	regionPattern, _ := regexp.Compile("^region =.+")
+
 	for i := 0; i < len(lines); i++ {
-		if s.Contains(lines[i], "[profile ") || s.Contains(lines[i], "[default]") {
+		if profilePattern.MatchString(lines[i]) {
 			currentProfile = s.Replace(lines[i], "[profile ", "", -1)
 			currentProfile = s.Replace(currentProfile, "]", "", -1)
 			profiles = append(profiles, awsProfile{name: currentProfile})
 			currentProfileIndex++
-		} else if s.Contains(lines[i], "sso_region = ") {
-			profiles[currentProfileIndex].region = s.Replace(lines[i], "sso_region = ", "", -1)
+		} else if regionPattern.MatchString(lines[i]) {
+			profiles[currentProfileIndex].region = s.Replace(lines[i], "region = ", "", -1)
 		} else if s.Contains(lines[i], "sso_account_id =") {
 			profiles[currentProfileIndex].account = s.Replace(lines[i], "sso_account_id = ", "", -1)
 		} else if s.Contains(lines[i], "sso_role_name =") {
